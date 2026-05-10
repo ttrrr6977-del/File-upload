@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Note Organizer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --danger: #ef4444;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            width: 100%;
+            max-width: 900px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-success { background: #10b981; color: white; }
+        .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+
+        /* Hidden File Input */
+        #fileInput { display: none; }
+
+        #note-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 20px;
+            width: 100%;
+            max-width: 900px;
+        }
+
+        .note-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            position: relative;
+            cursor: grab;
+            border: 2px solid transparent;
+            transition: border 0.3s;
+        }
+
+        .note-card:hover { border-color: var(--primary); }
+
+        .note-card img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 8px;
+            cursor: zoom-in;
+        }
+
+        .page-badge {
+            position: absolute;
+            top: -10px;
+            left: -10px;
+            background: var(--primary);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 10;
+        }
+
+        .remove-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: var(--danger);
+            color: white;
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            opacity: 0.8;
+        }
+
+        .remove-btn:hover { opacity: 1; }
+
+        /* Lightbox Modal */
+        #lightbox {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.9);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        #lightbox img {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 4px;
+        }
+
+        #lightbox-close {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            color: white;
+            font-size: 40px;
+            cursor: pointer;
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 600px) {
+            #note-container { grid-template-columns: repeat(2, 1fr); }
+            header { justify-content: center; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div>
+            <h2 style="margin:0">Note Organizer</h2>
+            <p style="color:#64748b; font-size: 14px;">Arrange and Export to PDF</p>
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                Add Note (File/Camera)
+            </button>
+            <button class="btn btn-success" onclick="exportToPDF()">
+                Download PDF
+            </button>
+        </div>
+    </header>
+
+    <input type="file" id="fileInput" accept="image/*" multiple>
+
+    <div id="note-container"></div>
+
+    <div id="lightbox" onclick="this.style.display='none'">
+        <span id="lightbox-close">&times;</span>
+        <img id="lightbox-img" src="" alt="">
+    </div>
+
+    <script>
+        const container = document.getElementById('note-container');
+        const fileInput = document.getElementById('fileInput');
+        let notesArray = [];
+
+        // 1. Initial Load from LocalStorage
+        window.onload = () => {
+            const saved = localStorage.getItem('my_notes');
+            if (saved) {
+                notesArray = JSON.parse(saved);
+                renderNotes();
+            }
+        };
+
+        // 2. Handle Uploads
+        fileInput.addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files);
+            for (const file of files) {
+                const base64 = await convertToBase64(file);
+                notesArray.push({ id: Date.now() + Math.random(), src: base64 });
+            }
+            saveAndRender();
+        });
+
+        function convertToBase64(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // 3. Render Notes with Drag and Drop Support
+        function renderNotes() {
+            container.innerHTML = '';
+            notesArray.forEach((note, index) => {
+                const card = document.createElement('div');
+                card.className = 'note-card';
+                card.draggable = true;
+                card.dataset.id = note.id;
+
+                card.innerHTML = `
+                    <div class="page-badge">Page ${index + 1}</div>
+                    <button class="remove-btn" onclick="removeNote('${note.id}')">&times;</button>
+                    <img src="${note.src}" onclick="openLightbox('${note.src}')">
+                `;
+
+                // Drag Logic
+                card.addEventListener('dragstart', () => card.classList.add('dragging'));
+                card.addEventListener('dragend', () => {
+                    card.classList.remove('dragging');
+                    reorderArray();
+                });
+
+                container.appendChild(card);
+            });
+        }
+
+        function saveAndRender() {
+            localStorage.setItem('my_notes', JSON.stringify(notesArray));
+            renderNotes();
+        }
+
+        function removeNote(id) {
+            notesArray = notesArray.filter(n => n.id != id);
+            saveAndRender();
+        }
+
+        // 4. Persistence for Reordering
+        container.addEventListener('dragover', e => {
+            e.preventDefault();
+            const dragging = document.querySelector('.dragging');
+            const afterElement = getDragAfterElement(container, e.clientY, e.clientX);
+            if (afterElement == null) {
+                container.appendChild(dragging);
+            } else {
+                container.insertBefore(dragging, afterElement);
+            }
+        });
+
+        function getDragAfterElement(container, y, x) {
+            const draggableElements = [...container.querySelectorAll('.note-card:not(.dragging)')];
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else { return closest; }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        function reorderArray() {
+            const currentCards = [...container.querySelectorAll('.note-card')];
+            const newOrder = currentCards.map(card => {
+                return notesArray.find(n => n.id == card.dataset.id);
+            });
+            notesArray = newOrder;
+            saveAndRender();
+        }
+
+        // 5. PDF Export
+        async function exportToPDF() {
+            if (notesArray.length === 0) return alert("Please upload notes first.");
+            
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF();
+
+            for (let i = 0; i < notesArray.length; i++) {
+                if (i > 0) pdf.addPage();
+                
+                const img = notesArray[i].src;
+                // Basic layout: Fit to page while maintaining center
+                pdf.addImage(img, 'JPEG', 10, 10, 190, 270, undefined, 'FAST');
+                pdf.text(`Page ${i + 1}`, 105, 290, { align: 'center' });
+            }
+            
+            pdf.save("My_Notes_Sequence.pdf");
+        }
+
+        // 6. Lightbox view
+        function openLightbox(src) {
+            document.getElementById('lightbox-img').src = src;
+            document.getElementById('lightbox').style.display = 'flex';
+        }
+    </script>
+</body>
+</html>
