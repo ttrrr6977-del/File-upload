@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pro Note Organizer - Folders</title>
+    <title>Pro Note Organizer - Multi-Folder</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         :root {
@@ -11,51 +11,14 @@
             --danger: #ef4444;
             --bg: #f8fafc;
             --card-bg: #ffffff;
-            --sidebar-bg: #1e293b;
+            --tab-inactive: #e2e8f0;
         }
 
         body {
             font-family: 'Inter', system-ui, sans-serif;
             background-color: var(--bg);
             margin: 0;
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        /* Sidebar Styling */
-        #sidebar {
-            width: 250px;
-            background: var(--sidebar-bg);
-            color: white;
-            display: flex;
-            flex-direction: column;
             padding: 20px;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-        }
-
-        .folder-btn {
-            background: rgba(255,255,255,0.1);
-            border: none;
-            color: white;
-            padding: 12px;
-            margin-bottom: 10px;
-            border-radius: 8px;
-            cursor: pointer;
-            text-align: left;
-            transition: 0.2s;
-            display: flex;
-            justify-content: space-between;
-        }
-
-        .folder-btn.active { background: var(--primary); }
-        .folder-btn:hover:not(.active) { background: rgba(255,255,255,0.2); }
-
-        /* Main Content Area */
-        main {
-            flex: 1;
-            padding: 20px;
-            overflow-y: auto;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -67,10 +30,51 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
             flex-wrap: wrap;
             gap: 15px;
         }
+
+        /* Folder System Styles */
+        .folder-bar {
+            width: 100%;
+            max-width: 900px;
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            overflow-x: auto;
+            padding: 5px;
+            scrollbar-width: thin;
+        }
+
+        .folder-tab {
+            padding: 8px 16px;
+            background: var(--tab-inactive);
+            border-radius: 8px;
+            cursor: pointer;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+            transition: all 0.2s;
+            border: 1px solid #cbd5e1;
+        }
+
+        .folder-tab.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .delete-folder {
+            font-size: 18px;
+            line-height: 1;
+            opacity: 0.6;
+            transition: 0.2s;
+        }
+
+        .delete-folder:hover { opacity: 1; color: var(--danger); }
 
         .btn-group { display: flex; gap: 10px; }
 
@@ -88,7 +92,7 @@
 
         .btn-primary { background: var(--primary); color: white; }
         .btn-success { background: #10b981; color: white; }
-        .btn-folder { background: #6366f1; color: white; width: 100%; margin-bottom: 20px; }
+        .btn-outline { background: white; border: 1px solid #cbd5e1; }
         .btn:hover { opacity: 0.9; transform: translateY(-1px); }
 
         #fileInput { display: none; }
@@ -109,11 +113,15 @@
             position: relative;
             cursor: grab;
             border: 2px solid transparent;
-            transition: border 0.3s;
         }
 
-        .note-card:hover { border-color: var(--primary); }
-        .note-card img { width: 100%; height: 200px; object-fit: cover; border-radius: 8px; cursor: zoom-in; }
+        .note-card img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 8px;
+            cursor: zoom-in;
+        }
 
         .page-badge {
             position: absolute;
@@ -156,104 +164,117 @@
             padding: 20px;
         }
 
-        #lightbox img { max-width: 100%; max-height: 100%; border-radius: 4px; }
-        #lightbox-close { position: absolute; top: 20px; right: 30px; color: white; font-size: 40px; cursor: pointer; }
+        #lightbox img { max-width: 100%; max-height: 100%; }
 
-        @media (max-width: 768px) {
-            body { flex-direction: column; }
-            #sidebar { width: 100%; height: auto; order: 2; padding: 10px; }
-            main { order: 1; }
+        @media (max-width: 600px) {
             #note-container { grid-template-columns: repeat(2, 1fr); }
+            header { justify-content: center; text-align: center; }
         }
     </style>
 </head>
 <body>
 
-    <aside id="sidebar">
-        <button class="btn btn-folder" onclick="createNewFolder()">+ New Folder</button>
-        <div id="folder-list"></div>
-    </aside>
-
-    <main>
-        <header>
+    <header>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <button class="btn btn-outline" onclick="addNewFolder()">+ New Folder</button>
             <div>
-                <h2 id="current-folder-name" style="margin:0">Default Folder</h2>
-                <p style="color:#64748b; font-size: 14px;">Arrange and Export to PDF</p>
+                <h2 style="margin:0; font-size: 1.2rem;">Note Organizer</h2>
             </div>
-            <div class="btn-group">
-                <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
-                    Add Note
-                </button>
-                <button class="btn btn-success" onclick="exportToPDF()">
-                    Download PDF
-                </button>
-            </div>
-        </header>
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Add Note</button>
+            <button class="btn btn-success" onclick="exportToPDF()">PDF</button>
+        </div>
+    </header>
 
-        <input type="file" id="fileInput" accept="image/*" multiple>
-        <div id="note-container"></div>
-    </main>
+    <div class="folder-bar" id="folderBar">
+        </div>
+
+    <input type="file" id="fileInput" accept="image/*" multiple>
+    <div id="note-container"></div>
 
     <div id="lightbox" onclick="this.style.display='none'">
-        <span id="lightbox-close">&times;</span>
         <img id="lightbox-img" src="">
     </div>
 
     <script>
         const container = document.getElementById('note-container');
+        const folderBar = document.getElementById('folderBar');
         const fileInput = document.getElementById('fileInput');
-        const folderListDisplay = document.getElementById('folder-list');
-        const folderTitle = document.getElementById('current-folder-name');
         
-        let folders = { "Default Folder": [] };
-        let currentFolder = "Default Folder";
-
-        // 1. Load Data
-        window.onload = () => {
-            const savedFolders = localStorage.getItem('note_folders');
-            if (savedFolders) {
-                folders = JSON.parse(savedFolders);
-            }
-            renderFolders();
-            loadFolder(Object.keys(folders)[0]);
+        let projectData = {
+            activeFolderId: "default",
+            folders: [
+                { id: "default", name: "Main Notes", notes: [] }
+            ]
         };
 
-        function createNewFolder() {
-            const name = prompt("Enter folder name:");
-            if (name && !folders[name]) {
-                folders[name] = [];
-                saveAll();
-                renderFolders();
-                loadFolder(name);
+        window.onload = () => {
+            const saved = localStorage.getItem('note_app_data');
+            if (saved) {
+                try {
+                    projectData = JSON.parse(saved);
+                } catch(e) { console.error("Data error", e); }
             }
-        }
+            renderFolders();
+            renderNotes();
+        };
 
-        function renderFolders() {
-            folderListDisplay.innerHTML = '';
-            Object.keys(folders).forEach(name => {
-                const btn = document.createElement('button');
-                btn.className = `folder-btn ${currentFolder === name ? 'active' : ''}`;
-                btn.innerHTML = `<span>📁 ${name}</span>`;
-                btn.onclick = () => loadFolder(name);
-                folderListDisplay.appendChild(btn);
-            });
-        }
-
-        function loadFolder(name) {
-            currentFolder = name;
-            folderTitle.innerText = name;
+        function addNewFolder() {
+            const name = prompt("Enter folder name:", "New Folder");
+            if (!name) return;
+            const newFolder = { id: 'f-' + Date.now(), name: name, notes: [] };
+            projectData.folders.push(newFolder);
+            projectData.activeFolderId = newFolder.id;
+            saveData();
             renderFolders();
             renderNotes();
         }
 
-        // 2. Uploads
+        function deleteFolder(id, e) {
+            e.stopPropagation();
+            if (projectData.folders.length === 1) return alert("Cannot delete the last folder.");
+            if (!confirm("Delete this folder and all images inside?")) return;
+            
+            projectData.folders = projectData.folders.filter(f => f.id !== id);
+            if (projectData.activeFolderId === id) projectData.activeFolderId = projectData.folders[0].id;
+            
+            saveData();
+            renderFolders();
+            renderNotes();
+        }
+
+        function switchFolder(id) {
+            projectData.activeFolderId = id;
+            saveData();
+            renderFolders();
+            renderNotes();
+        }
+
+        function renderFolders() {
+            folderBar.innerHTML = '';
+            projectData.folders.forEach(folder => {
+                const isActive = folder.id === projectData.activeFolderId;
+                const tab = document.createElement('div');
+                tab.className = `folder-tab ${isActive ? 'active' : ''}`;
+                tab.onclick = () => switchFolder(folder.id);
+                tab.innerHTML = `
+                    ${folder.name} 
+                    <span class="delete-folder" onclick="deleteFolder('${folder.id}', event)">&times;</span>
+                `;
+                folderBar.appendChild(tab);
+            });
+        }
+
         fileInput.addEventListener('change', async (e) => {
             const files = Array.from(e.target.files);
+            const activeFolder = projectData.folders.find(f => f.id === projectData.activeFolderId);
+            
             for (const file of files) {
                 const base64 = await compressImage(file);
-                folders[currentFolder].push({ id: Date.now() + Math.random(), src: base64 });
+                activeFolder.notes.push({ id: Date.now() + Math.random(), src: base64 });
             }
-            saveAll();
+            saveData();
             renderNotes();
             fileInput.value = "";
         });
@@ -262,9 +283,9 @@
             return new Promise((resolve) => {
                 const reader = new FileReader();
                 reader.readAsDataURL(file);
-                reader.onload = (e) => {
+                reader.onload = (event) => {
                     const img = new Image();
-                    img.src = e.target.result;
+                    img.src = event.target.result;
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
                         const MAX_WIDTH = 1000;
@@ -279,11 +300,11 @@
             });
         }
 
-        // 3. Render Notes
         function renderNotes() {
             container.innerHTML = '';
-            const currentNotes = folders[currentFolder];
-            currentNotes.forEach((note, index) => {
+            const activeFolder = projectData.folders.find(f => f.id === projectData.activeFolderId);
+            
+            activeFolder.notes.forEach((note, index) => {
                 const card = document.createElement('div');
                 card.className = 'note-card';
                 card.draggable = true;
@@ -294,29 +315,18 @@
                     <img src="${note.src}" onclick="openLightbox('${note.src}')">
                 `;
                 card.addEventListener('dragstart', () => card.classList.add('dragging'));
-                card.addEventListener('dragend', () => {
-                    card.classList.remove('dragging');
-                    reorderArray();
-                });
+                card.addEventListener('dragend', () => { card.classList.remove('dragging'); reorderArray(); });
                 container.appendChild(card);
             });
         }
 
         function removeNote(id) {
-            folders[currentFolder] = folders[currentFolder].filter(n => n.id != id);
-            saveAll();
+            const activeFolder = projectData.folders.find(f => f.id === projectData.activeFolderId);
+            activeFolder.notes = activeFolder.notes.filter(n => n.id != id);
+            saveData();
             renderNotes();
         }
 
-        function saveAll() {
-            try {
-                localStorage.setItem('note_folders', JSON.stringify(folders));
-            } catch (e) {
-                alert("Storage full! Please delete some images.");
-            }
-        }
-
-        // 4. Drag & Drop
         container.addEventListener('dragover', e => {
             e.preventDefault();
             const dragging = document.querySelector('.dragging');
@@ -336,26 +346,30 @@
         }
 
         function reorderArray() {
+            const activeFolder = projectData.folders.find(f => f.id === projectData.activeFolderId);
             const currentCards = [...container.querySelectorAll('.note-card')];
-            folders[currentFolder] = currentCards.map(card => 
-                folders[currentFolder].find(n => n.id == card.dataset.id)
-            );
-            saveAll();
+            activeFolder.notes = currentCards.map(card => activeFolder.notes.find(n => n.id == card.dataset.id));
+            saveData();
             renderNotes();
         }
 
-        // 5. PDF & Lightbox
+        function saveData() {
+            try {
+                localStorage.setItem('note_app_data', JSON.stringify(projectData));
+            } catch (e) { alert("Storage full! Remove some images."); }
+        }
+
         async function exportToPDF() {
-            const notes = folders[currentFolder];
-            if (notes.length === 0) return alert("Folder is empty.");
+            const activeFolder = projectData.folders.find(f => f.id === projectData.activeFolderId);
+            if (activeFolder.notes.length === 0) return alert("No images in this folder.");
             const { jsPDF } = window.jspdf;
             const pdf = new jsPDF();
-            for (let i = 0; i < notes.length; i++) {
+            for (let i = 0; i < activeFolder.notes.length; i++) {
                 if (i > 0) pdf.addPage();
-                pdf.addImage(notes[i].src, 'JPEG', 10, 10, 190, 270, undefined, 'FAST');
-                pdf.text(`Page ${i + 1}`, 105, 290, { align: 'center' });
+                pdf.addImage(activeFolder.notes[i].src, 'JPEG', 10, 10, 190, 270, undefined, 'FAST');
+                pdf.text(`Folder: ${activeFolder.name} - Page ${i + 1}`, 105, 290, { align: 'center' });
             }
-            pdf.save(`${currentFolder}_Notes.pdf`);
+            pdf.save(`${activeFolder.name}.pdf`);
         }
 
         function openLightbox(src) {
